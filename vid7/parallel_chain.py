@@ -17,12 +17,12 @@ parser = StrOutputParser()
 
 template1 = PromptTemplate(
 
-    template = "Generate 5 facts on {topic}",
+    template = "Generate 5 facts on {topic}\n Only return 5 items. No metadata. No other text.",
     input_variables= ["topic"]
 )
 
 template2 = PromptTemplate(
-    template= "Generate 5 questions on {topic}",
+    template= "Generate 5 questions on {topic}\n Only return 5 items. No metadata. No other text.",
     input_variables = ["topic"]
 )
 template3 = PromptTemplate(
@@ -47,3 +47,5 @@ chain = parallel_chain | merge_chain
 result = chain.invoke(input= {"topic" : "Black Hole"})
 
 print(result)
+
+#chain.get_graph().print_ascii()
