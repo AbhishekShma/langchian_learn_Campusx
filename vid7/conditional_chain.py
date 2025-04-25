@@ -45,6 +45,8 @@ model = ChatHuggingFace(llm=llm)
 
 class Review(BaseModel):
     sentiment :  Annotated[Literal["Positive","Negative"] , Field(description="Assign a positive or negative label to a review")]
+    feedback : Annotated[str, Field(description="The feedback provided by the user")]
+
 
 parser_pydantic = PydanticOutputParser(pydantic_object=Review)
 parser_string = StrOutputParser()
@@ -57,41 +59,69 @@ def format_prompt(user_message):
 
 prompt1 = PromptTemplate(
 
-    template="<|user|>\nOnly produce a classification, don't add any other text, follow all instructions closely.\nClassify the following feedback into the categories positive or negative:\n {feedback}\nEnd of feedback\n{format_instructions}\n<|assistant|>\n",
+template=
+    (
+    "<|user|>\n"
+    "You are a strict JSON formatter.\n"
+    "Do not include any other text in the response.\n"
+    "Classify the following feedback as either 'Positive' or 'Negative'.\n"
+    "Return the result with both the sentiment and the feedback included.\n"
+    "Feedback:\n{feedback}\n"
+    "Feedback Ends Here\n"
+    "Return the result in the following format:\n"
+    "{format_instructions}\n"
+    "<|assistant|>\n"
+    ),        
     input_variables=["feedback"],
-    partial_variables={"format_instructions" : parser_pydantic.get_format_instructions()} 
+    partial_variables={"format_instructions" : parser_pydantic.get_format_instructions()}   
 )
 
 #print(prompt1.format(feedback="I love this product, it works great!"))
 
 prompt2 = PromptTemplate(
 
-   template = "<|user|>\nWrite an appropritate response to the following positive feedback: \n {feedback}\n<|assistant|>\n" ,
-   input_variables=["feedback"]
+template = "<|user|>\nWrite an appropritate response to the following positive feedback: \n {feedback}\n<|assistant|>\n" ,
+input_variables=["feedback"]
 )
 #print(prompt2.format(feedback="I love this product, it works great!"))
 
 prompt3 = PromptTemplate(
 
-   template = "<|user|>\nWrite an apropritate response to the following negative feedback: \n {feedback}\n<|assistant|>\n" ,
-   input_variables=["feedback"]
+template = "<|user|>\nWrite an apropritate response to the following negative feedback: \n {feedback}\n<|assistant|>\n" ,
+input_variables=["feedback"]
 )
 
-#Chains
-classifier_chain = prompt1 | llm | parser_string
+#Clean llm output
 
-result = classifier_chain.invoke({"feedback" : "I love this product, it works great!"})
-#print(result)
 def split_output_string(string):
 
-    result_of_split= string.rsplit("<|assistant|>",-1)
+    result_of_split= string.rsplit("<|end_header_id|>",-1)
 
     return result_of_split[-1]
 
-result = split_output_string(result)
-result = result.replace("\n","")
-print(result)
 
+def format_llm_output(result : str):
+    result = split_output_string(result)
+    result = result.replace("\n","")
+    result.replace("`", "")
+    return result
+
+#print(format_llm_output("Hello <|end_header_id|>"))
+
+formatting_runnable = RunnableLambda(format_llm_output)
+#Chains
+classifier_chain = prompt1 | model | parser_string |formatting_runnable| parser_string
+
+result = classifier_chain.invoke({"feedback" : "I love this product, it works great!"})
+#print(result)
+
+
+
+# result = split_output_string(result)
+# result = result.replace("\n","")
+# result.replace("`", "")
+print(result)
+'''
 branch_chain = RunnableBranch(
     (lambda x : x.sentiment =="Positive", prompt2 | model | parser_string),
     (lambda x : x.sentiment == "Negative",prompt3 | model | parser_string),
@@ -104,5 +134,9 @@ chain = classifier_chain | branch_chain
 
 result = chain.invoke({"feedback" : "I love this product, it works great!"})
 print(result)
+'''
+
+
+
 
 
